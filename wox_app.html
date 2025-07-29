@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Woonexprees Verkoop App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            /* Align to top to prevent jumping on keyboard open */
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        input,
+        button,
+        select,
+        textarea {
+            border-radius: 8px;
+            /* Rounded corners for all form elements */
+        }
+
+        .button-primary {
+            background-color: #4f46e5;
+            /* Indigo 600 */
+            color: white;
+            padding: 12px 20px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .button-primary:hover {
+            background-color: #4338ca;
+            /* Indigo 700 */
+        }
+
+        .button-secondary {
+            background-color: #e0e7ff;
+            /* Indigo 100 */
+            color: #4f46e5;
+            /* Indigo 600 */
+            padding: 12px 20px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .button-secondary:hover {
+            background-color: #c7d2fe;
+            /* Indigo 200 */
+        }
+
+        video {
+            width: 100%;
+            max-height: 300px;
+            background-color: #000;
+            border-radius: 10px;
+            object-fit: cover;
+            /* Ensure video fills the space */
+        }
+
+        canvas {
+            display: none;
+            /* Hidden, used for capturing image */
+        }
+
+        #capturedImage {
+            width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            object-fit: contain;
+            /* Ensure image fits without cropping */
+            background-color: #f0f4f8;
+            /* Placeholder background */
+        }
+
+        .message-box {
+            background-color: #fff3cd;
+            /* Light yellow for warnings */
+            border: 1px solid #ffeeba;
+            color: #664d03;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            /* Hidden by default */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Woonexprees Document App</h1>
+
+        <!-- Order Details Section -->
+        <div class="space-y-4">
+            <div>
+                <label for="orderName" class="block text-sm font-medium text-gray-700 mb-1">Ordernaam:</label>
+                <input type="text" id="orderName" placeholder="Voer ordernaam in" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="orderNumber" class="block text-sm font-medium text-gray-700 mb-1">Ordernummer:</label>
+                <input type="text" id="orderNumber" placeholder="Voer ordernummer in" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+        </div>
+
+        <!-- Camera Section -->
+        <div class="flex flex-col items-center gap-4">
+            <video id="cameraFeed" autoplay playsinline class="border border-gray-300"></video>
+            <button id="startCameraButton" class="button-primary w-full">Start Camera</button>
+            <button id="captureButton" class="button-secondary w-full" disabled>Maak Foto</button>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <img id="capturedImage" src="https://placehold.co/400x300/e0e7ff/4f46e5?text=Geen+foto+gemaakt" alt="Gemaakte foto" class="border border-gray-300">
+        </div>
+
+        <!-- Email Section -->
+        <div class="flex flex-col items-center gap-4">
+            <button id="sendEmailButton" class="button-primary w-full" disabled>Verstuur Via E-mail</button>
+            <div id="messageBox" class="message-box">
+                <p><strong>Let op:</strong> Vanwege browserbeveiliging opent dit een nieuwe e-mail in uw standaard
+                    e-mailprogramma. De foto wordt als tekst in de e-mailbody toegevoegd en kan groot zijn.</p>
+                <p>Voor geautomatiseerd versturen op de achtergrond is een server-oplossing nodig.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const orderNameInput = document.getElementById('orderName');
+        const orderNumberInput = document.getElementById('orderNumber');
+        const cameraFeed = document.getElementById('cameraFeed');
+        const startCameraButton = document.getElementById('startCameraButton');
+        const captureButton = document.getElementById('captureButton');
+        const canvas = document.getElementById('canvas');
+        const capturedImage = document.getElementById('capturedImage');
+        const sendEmailButton = document.getElementById('sendEmailButton');
+        const messageBox = document.getElementById('messageBox');
+        let currentStream;
+        let photoData = null;
+
+        /**
+         * Start de camerafeed en toont deze in het video-element.
+         * Vraagt om toestemming voor cameratoegang.
+         */
+        async function startCamera() {
+            try {
+                // Stop eventuele bestaande streams
+                if (currentStream) {
+                    currentStream.getTracks().forEach(track => track.stop());
+                }
+
+                // Vraag toegang tot de camera
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); // 'environment' voor achtercamera
+                cameraFeed.srcObject = stream;
+                currentStream = stream;
+                captureButton.disabled = false; // Activeer de maak foto knop
+                startCameraButton.textContent = 'Camera Herstarten'; // Wijzig tekst van knop
+                messageBox.style.display = 'none'; // Verberg eventuele waarschuwingsberichten
+            } catch (err) {
+                console.error('Fout bij starten camera:', err);
+                messageBox.textContent = 'Kan camera niet starten. Zorg ervoor dat de app toegang heeft tot uw camera.';
+                messageBox.style.display = 'block';
+                captureButton.disabled = true;
+            }
+        }
+
+        /**
+         * Maakt een foto van de huidige camerafeed.
+         * De foto wordt op een canvas getekend en vervolgens als Data URL opgeslagen.
+         */
+        function capturePhoto() {
+            if (!currentStream) {
+                messageBox.textContent = 'Start eerst de camera om een foto te maken.';
+                messageBox.style.display = 'block';
+                return;
+            }
+
+            // Zorg ervoor dat de canvas de juiste afmetingen heeft
+            canvas.width = cameraFeed.videoWidth;
+            canvas.height = cameraFeed.videoHeight;
+
+            // Teken de huidige frame van de video op het canvas
+            const context = canvas.getContext('2d');
+            context.drawImage(cameraFeed, 0, 0, canvas.width, canvas.height);
+
+            // Haal de afbeelding data op als een PNG Data URL
+            photoData = canvas.toDataURL('image/png');
+            capturedImage.src = photoData; // Toon de gemaakte foto
+            sendEmailButton.disabled = false; // Activeer de verstuur knop
+            messageBox.style.display = 'none'; // Verberg eventuele waarschuwingsberichten
+        }
+
+        /**
+         * Genereert en opent een 'mailto:' link met de orderinformatie en de foto.
+         * Belangrijke opmerking: Dit is een client-side oplossing. Voor echte achtergrondmail is een server nodig.
+         */
+        function sendEmail() {
+            const orderName = orderNameInput.value.trim();
+            const orderNumber = orderNumberInput.value.trim();
+
+            if (!orderName || !orderNumber) {
+                messageBox.textContent = 'Vul alstublieft zowel de Ordernaam als het Ordernummer in.';
+                messageBox.style.display = 'block';
+                return;
+            }
+
+            if (!photoData) {
+                messageBox.textContent = 'Maak alstublieft eerst een foto van het document.';
+                messageBox.style.display = 'block';
+                return;
+            }
+
+            // Onderwerp van de e-mail
+            const subject = `Document scan - Ordernaam: ${orderName}, Ordernummer: ${orderNumber}`;
+
+            // Body van de e-mail met de base64 foto data
+            // Let op: Base64 data in mailto body kan te groot zijn voor sommige mailclients/URL limieten.
+            const body = `Beste,\n\nHierbij de scan van het document voor:\nOrdernaam: ${orderName}\nOrdernummer: ${orderNumber}\n\nDocument foto (Base64): \n${photoData}\n\nMet vriendelijke groet,\nDe Woonexprees Verkoop App`;
+
+            // Creëer de mailto link
+            const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+            // Open de mailto link
+            window.location.href = mailtoLink;
+
+            messageBox.textContent = 'Uw standaard e-mailprogramma is geopend. Controleer de e-mail voordat u deze verzendt.';
+            messageBox.style.display = 'block';
+        }
+
+        // Event Listeners
+        startCameraButton.addEventListener('click', startCamera);
+        captureButton.addEventListener('click', capturePhoto);
+        sendEmailButton.addEventListener('click', sendEmail);
+
+        // Initial check for camera availability
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            startCameraButton.disabled = true;
+            messageBox.textContent = 'Uw browser ondersteunt geen cameratoegang. Probeer een andere browser of apparaat.';
+            messageBox.style.display = 'block';
+        }
+
+        // Stop camera stream when the page is unloaded (e.g., user navigates away)
+        window.addEventListener('beforeunload', () => {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+
+</html>
